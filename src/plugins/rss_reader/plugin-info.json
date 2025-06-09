@@ -1,0 +1,5 @@
+{
+    "display_name": "RSS Reader",
+    "id": "rss_reader",
+    "class": "RSSReader"
+}

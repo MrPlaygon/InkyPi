@@ -1,0 +1,16 @@
+<div class="form-group">
+    <label for="rssUrl" class="form-label">RSS URL</label>
+    <input type="url" id="rssUrl" name="rssUrl" class="form-input" />
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const rssUrlInputElement = document.getElementById("rssUrl");
+
+        if (pluginSettings && pluginSettings.rssUrl) {
+            rssUrlInputElement.value = pluginSettings.rssUrl;
+        }
+    });
+</script>
+
+<!-- Icon from https://iconduck.com/icons/19693/rss -->
