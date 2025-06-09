@@ -1,0 +1,20 @@
+<div class="form-group">
+    <label for="language" class="form-label">Language</label>
+    <input type="text" id="language" name="language" class="form-input" list="languages" />
+    <datalist id="languages">
+        {% for l in languages %}
+            <option value="{{ l }}">
+        {% endfor %}
+    </datalist>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const languageInputElement = document.getElementById("language");
+
+        if (pluginSettings && pluginSettings.language) {
+            languageInputElement.value = pluginSettings.language;
+        }
+    });
+</script>
+<!-- Icon from https://www.svgrepo.com/svg/103445/winking-emoticon-smiling-face-with-tongue-out-of-the-mouth-in-square-rounded-outline-shape -->
