@@ -5,7 +5,7 @@ import textwrap
 
 SUPPORTED_LANGUAGES = ["de", "en"]  # According to website
 
-class useless_facts(BasePlugin):
+class UselessFacts(BasePlugin):
 
     def generate_settings_template(self):
         template_params = super().generate_settings_template()
