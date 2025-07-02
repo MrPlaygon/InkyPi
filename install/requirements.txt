@@ -11,6 +11,6 @@ numpy==2.2.1
 icalendar==6.3.1
 recurring-ical-events==3.7.0
 psutil==7.0.0
-caldav==2.0.1
 todoist_api_python==3.1.0
 cysystemd==2.0.1
+todoist_api_python==3.1.0
