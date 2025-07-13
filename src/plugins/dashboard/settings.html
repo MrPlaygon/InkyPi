@@ -34,3 +34,65 @@
         }
     });
 </script>
+
+<div>
+  <label class="form-label">Calendars:</label>
+  <div id="calendarList"></div>
+  <button type="button" id="addCalendarBtn" class="form-input collapsible" onclick="addCalendarInput('', '#007BFF')">Add Calendar</button>
+</div>
+
+<script>
+    function addCalendarInput(url = '', color = '#007BFF') {
+        const calendarList = document.getElementById('calendarList');
+
+        const wrapper = document.createElement('div');
+        wrapper.classList.add('calendar-entry');
+        wrapper.classList.add('form-group');
+
+        const colorInput = document.createElement('input');
+        colorInput.type = 'color';
+        colorInput.name = 'calendarColors[]';
+        colorInput.classList.add('color-picker');
+        colorInput.value = color;
+
+        const urlInput = document.createElement('input');
+        urlInput.type = 'text';
+        urlInput.name = 'calendarURLs[]';
+        urlInput.placeholder = 'Calendar URL';
+        urlInput.required = true;
+        urlInput.classList.add('form-input');
+        urlInput.value = url;
+
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.innerText = '✕';
+        removeBtn.classList.add('remove-btn');
+        removeBtn.onclick = () => wrapper.remove();
+
+        wrapper.appendChild(colorInput);
+        wrapper.appendChild(urlInput);
+        wrapper.appendChild(removeBtn);
+
+        calendarList.appendChild(wrapper);
+    }
+
+    // populate form values from plugin settings
+    document.addEventListener('DOMContentLoaded', () => {
+        let calendars = [{ url: '', color: '#007BFF' }];
+
+        if (loadPluginSettings) {
+            if (pluginSettings["calendarURLs[]"]) {
+                calendars = pluginSettings["calendarURLs[]"].map((url, i) => ({
+                    url: url || '',
+                    color: pluginSettings["calendarColors[]"][i]  || '#007BFF'
+                }));
+            }
+        }
+
+        // populate calendars
+        calendars.forEach(({ url, color }) => {
+            addCalendarInput(url, color);
+        });
+    });
+
+</script>

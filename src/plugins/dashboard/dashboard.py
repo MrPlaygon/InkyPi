@@ -1,12 +1,16 @@
+import icalendar
+import pytz
 from plugins.base_plugin.base_plugin import BasePlugin
 import json
-from PIL import Image, ImageDraw, ImageFont
-import caldav
+from PIL import Image, ImageDraw, ImageFont, ImageColor
 from datetime import datetime, timedelta, time
+from dateutil import parser
 import requests
 import logging
 from urllib.request import urlopen
 from todoist_api_python.api import TodoistAPI
+import recurring_ical_events
+
 
 FONT_NAME = "DejaVuSans.ttf"
 
@@ -141,36 +145,8 @@ class Dashboard(BasePlugin):
             raise RuntimeError("Failed to retrieve weather data.")
         return response.json()
 
-    def load_calender_events(self, url, username, password, future_days: int):
-        with caldav.DAVClient(url=url, username=username, password=password) as client:
-            my_principal = client.principal()
-            calendars = my_principal.calendars()
-            calendar = calendars[0]
-
-            start_date = datetime.combine(datetime.today(), time.min)
-            end_date = datetime.combine(datetime.today(), time.max)
-            if future_days > 0:
-                end_date = end_date + timedelta(days=future_days)
-
-            future_events = calendar.search(start=start_date,
-                                            end=end_date,
-                                            event=True,
-                                            expand=True)
-
-            parsed_events = []
-            for event in future_events:
-                for component in event.icalendar_instance.walk():
-                    if component.name != "VEVENT":
-                        continue
-                    parsed_events.append(self.parse_event(component, calendar))
-
-            parsed_events.sort(key=lambda e: datetime.strptime(e["start"], "%Y-%m-%dT%H:%M"))
-            print(json.dumps(parsed_events, indent=2))
-
-        return parsed_events[:MAX_CALENDAR_EVENTS]
-
     # Draws the events on the canvas
-    def draw_calendar_events(self, events, draw, position: list[int]):
+    def draw_calendar_events(self, events, draw, position: list[int], timezone: datetime.tzinfo):
         x0 = position[0]
         y0 = position[1]
         x1 = position[2]
@@ -199,12 +175,12 @@ class Dashboard(BasePlugin):
             draw.rounded_rectangle([x0, y0, x1, y1], outline="black", radius=5, width=4)
             line_height = (event_rect_height - (event_padding * 3)) // 2
 
-            summary_font_size = self.get_font_size_from_height(event["summary"], line_height)
+            summary_font_size = self.get_font_size_from_height(event["title"], line_height)
             summary_font = self.load_font(summary_font_size)
-            draw.text((x0 + event_padding, y0 + event_padding), event["summary"], font=summary_font, fill="black", anchor="lt")
+            draw.text((x0 + event_padding, y0 + event_padding), event["title"], font=summary_font, fill="black", anchor="lt")
 
-            timeslot_string = self.format_datetime(event["start"], date_format="%Y-%m-%dT%H:%M") + " - " + self.format_datetime(event["end"], date_format="%Y-%m-%dT%H:%M")
-            timeslot_font_size = self.get_font_size_from_height(timeslot_string, line_height)
+            timeslot_string = self.format_datetime(event["start"], timezone) + " - " + self.format_datetime(event["end"], timezone)
+            timeslot_font_size = min(self.get_font_size_from_height(timeslot_string, line_height), self.get_font_size_from_width(timeslot_string, x1-x0))
             timeslot_font = self.load_font(timeslot_font_size)
             draw.text((x0 + event_padding, y0 + event_padding + line_height + event_padding), timeslot_string, font=timeslot_font, fill="black", anchor="lt")
 
@@ -212,8 +188,9 @@ class Dashboard(BasePlugin):
             y1 += event_rect_height + 5
 
     # Helper function to make date readable
-    def format_datetime(self, dt: str, date_format: str) -> str:
-        dt = datetime.strptime(dt, date_format)
+    def format_datetime(self, dt: str, timezone: datetime.tzinfo) -> str:
+        dt = parser.isoparse(dt)
+        dt = dt.astimezone(timezone)
         now = datetime.now()
         if dt.date() == now.date():
             return dt.strftime("%H:%M")
@@ -304,8 +281,72 @@ class Dashboard(BasePlugin):
             draw.text(humidity_position, humidity_text, font=font, fill="black")
             y_anchor += padding + font.getbbox(humidity_text)[3] - font.getbbox(humidity_text)[1]
 
+    def fetch_ics_events(self, calendar_urls, calendar_colors, tz, start, end):
+        parsed_events = []
 
-    def generate_image(self, settings, device_config):
+        for calendar_url, color in zip(calendar_urls, calendar_colors):
+            cal = self.fetch_calendar(calendar_url)
+            events = recurring_ical_events.of(cal).between(start, end)
+            contrast_color = self.get_contrast_color(color)
+
+            for event in events:
+                start, end, all_day = self.parse_data_points(event, tz)
+                parsed_event = {
+                    "title": str(event.get("summary")),
+                    "start": start,
+                    "backgroundColor": color,
+                    "textColor": contrast_color,
+                    "allDay": all_day
+                }
+                if end:
+                    parsed_event['end'] = end
+
+                parsed_events.append(parsed_event)
+
+        parsed_events.sort(key=lambda ev: parser.isoparse(ev["start"]))
+        return parsed_events
+
+    def fetch_calendar(self, calendar_url):
+        try:
+            response = requests.get(calendar_url)
+            response.raise_for_status()
+            return icalendar.Calendar.from_ical(response.text)
+        except Exception as e:
+            raise RuntimeError(f"Failed to fetch iCalendar url: {str(e)}")
+
+    def get_contrast_color(self, color):
+        """
+        Returns '#000000' (black) or '#ffffff' (white) depending on the contrast
+        against the given color.
+        """
+        r, g, b = ImageColor.getrgb(color)
+        # YIQ formula to estimate brightness
+        yiq = (r * 299 + g * 587 + b * 114) / 1000
+
+        return '#000000' if yiq >= 150 else '#ffffff'
+
+    def parse_data_points(self, event, tz):
+        all_day = False
+        dtstart = event.decoded("dtstart")
+        if isinstance(dtstart, datetime):
+            start = dtstart.astimezone(tz).isoformat()
+        else:
+            start = dtstart.isoformat()
+            all_day = True
+
+        end = None
+        if "dtend" in event:
+            dtend = event.decoded("dtend")
+            if isinstance(dtend, datetime):
+                end = dtend.astimezone(tz).isoformat()
+            else:
+                end = dtend.isoformat()
+        elif "duration" in event:
+            duration = event.decoded("duration")
+            end = (dtstart + duration).isoformat()
+        return start, end, all_day
+
+    def generate_image(self, settings, device_config) -> Image:
         margins = 10
         width, height = device_config.get_resolution()
 
@@ -314,11 +355,22 @@ class Dashboard(BasePlugin):
         draw = ImageDraw.Draw(image)
 
         # Calendar view (bottom left)
-        caldav_username = device_config.load_env_key("CALDAV_USERNAME")
-        caldav_password = device_config.load_env_key("CALDAV_PASSWORD")
-        caldav_url = device_config.load_env_key("CALDAV_URL")
-        events = self.load_calender_events(caldav_url, caldav_username, caldav_password, int(settings.get("calendar_future_days")))
-        self.draw_calendar_events(events, draw, [margins, height // 2, (width-margins*3)//2+margins, height - margins])
+        timezone = device_config.get_config("timezone", default="America/New_York")
+        tz = pytz.timezone(timezone)
+        current_dt = datetime.now(tz)
+        start = datetime(current_dt.year, current_dt.month, current_dt.day)
+        end = start + timedelta(days=int(settings.get("calendar_future_days")))
+        calendar_urls = settings.get('calendarURLs[]')
+        calendar_colors = settings.get('calendarColors[]')
+        if not calendar_urls:
+            raise RuntimeError("At least one calendar URL is required")
+        for url in calendar_urls:
+            if not url.strip():
+                raise RuntimeError("Invalid calendar URL")
+
+        events = self.fetch_ics_events(calendar_urls, calendar_colors, tz, start, end)
+        print(json.dumps(events, indent=2))
+        self.draw_calendar_events(events, draw, [margins, height // 2, (width-margins*3)//2+margins, height - margins], tz)
 
         # Today's date (top left)
         self.draw_current_date(draw, [margins, margins, (width - 3 * margins) // 1.5 + margins, int(height * 0.125 + margins)])
@@ -334,3 +386,6 @@ class Dashboard(BasePlugin):
         self.draw_todos(todoist_tasks, draw, [(width - 3 * margins) // 2 + 2 * margins, int(height * 0.125 + margins + margins), width - margins, height - margins])
 
         return image
+
+
+
