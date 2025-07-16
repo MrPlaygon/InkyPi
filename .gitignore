@@ -165,3 +165,7 @@ cython_debug/
 
 # Ignore Mac DS_Store files
 .DS_Store
+
+# Plugin Testing
+.env.debug
+scripts/out.png

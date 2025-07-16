@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+    <link rel="stylesheet" href="dashboard.css">
+</head>
+<body>
+    <div class="dashboard">
+        <!-- Top row: Date and Weather -->
+        <div class="top-section">
+            <div class="date-box">
+                {{ current_date }}
+            </div>
+            <div class="weather-strip">
+                {% for item in weather_data.list %}
+                <div class="weather-item">
+                    <img src="https://openweathermap.org/img/wn/{{ item.weather[0].icon }}@2x.png" class="weather-icon">
+                    <div class="weather-time">{{ item.dt_txt[11:16] }}</div>
+                    <div class="weather-temp">{{ "%.0f"|format(item.main.temp) }}°C</div>
+                    <div class="weather-humid">{{ item.main.humidity }}%</div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Bottom row: Calendar and Tasks -->
+        <div class="bottom-section">
+            <!-- Calendar Events -->
+            <div class="calendar-panel">
+                <h3>Today's Events</h3>
+                {% if events %}
+                    {% for event in events[:4] %}
+                    <div class="event-card" style="background-color: {{ event.backgroundColor }}; color: {{ event.textColor }};">
+                        <div class="event-title">{{ event.title }}</div>
+                        <div class="event-time">
+                            {% if event.allDay %}
+                                All Day
+                            {% else %}
+                                {{ event.start[11:16] }}{% if event.end %} - {{ event.end[11:16] }}{% endif %}
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="no-events">Nothing going on today...</div>
+                {% endif %}
+            </div>
+
+            <!-- Todoist Tasks -->
+            <div class="tasks-panel">
+                <h3>Tasks</h3>
+                {% if todoist_tasks %}
+                    {% for task in todoist_tasks %}
+                    <div class="task-card task-priority-{{ task.priority }}">
+                        {{ task.content }}
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="no-tasks">No tasks today!</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</body>
+</html>
