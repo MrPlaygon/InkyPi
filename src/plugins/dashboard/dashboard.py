@@ -143,7 +143,11 @@ class Dashboard(BasePlugin):
         if not 200 <= response.status_code < 300:
             logging.error(f"Failed to retrieve weather data: {response.content}")
             raise RuntimeError("Failed to retrieve weather data.")
-        return response.json()
+        datapoints = response.json()
+        for datapoint in datapoints["list"]:
+            dt_obj = datetime.strptime(datapoint["dt_txt"], "%Y-%m-%d %H:%M:%S")
+            datapoint["formatted_time"] = dt_obj.strftime("%H:%M")
+        return datapoints
 
     # Draws the events on the canvas
     def draw_calendar_events(self, events, draw, position: list[int], timezone: datetime.tzinfo):
@@ -303,7 +307,22 @@ class Dashboard(BasePlugin):
 
                 parsed_events.append(parsed_event)
 
-        parsed_events.sort(key=lambda ev: parser.isoparse(ev["start"]))
+        print(parsed_events)
+        parsed_events.sort(key=lambda ev: parser.isoparse(ev["start"]).astimezone(tz))
+
+        for event in parsed_events:
+            if not event["allDay"]:
+                start_dt = parser.isoparse(event["start"]).astimezone(tz)
+                event["formatted_start"] = start_dt.strftime("%H:%M")
+
+                if event.get("end"):
+                    end_dt = parser.isoparse(event["end"]).astimezone(tz)
+                    # Check if it's the same day
+                    if start_dt.date() == end_dt.date():
+                        event["formatted_end"] = end_dt.strftime("%H:%M")
+                    else:
+                        event["formatted_end"] = end_dt.strftime("%d.%m.%Y %H:%M")
+
         return parsed_events
 
     def fetch_calendar(self, calendar_url):
@@ -347,12 +366,12 @@ class Dashboard(BasePlugin):
         return start, end, all_day
 
     def generate_image(self, settings, device_config) -> Image:
-        margins = 10
-        width, height = device_config.get_resolution()
+        #margins = 10
+        #width, height = device_config.get_resolution()
 
         # Create a white background image
-        image = Image.new("RGB", (width, height), "white")
-        draw = ImageDraw.Draw(image)
+        #image = Image.new("RGB", (width, height), "white")
+        #draw = ImageDraw.Draw(image)
 
         # Calendar view (bottom left)
         timezone = device_config.get_config("timezone", default="America/New_York")
@@ -369,21 +388,37 @@ class Dashboard(BasePlugin):
                 raise RuntimeError("Invalid calendar URL")
 
         events = self.fetch_ics_events(calendar_urls, calendar_colors, tz, start, end)
-        print(json.dumps(events, indent=2))
-        self.draw_calendar_events(events, draw, [margins, height // 2, (width-margins*3)//2+margins, height - margins], tz)
+        print("Events:")
+        print(events)
+        #print(json.dumps(events, indent=2))
+        #self.draw_calendar_events(events, draw, [margins, height // 2, (width-margins*3)//2+margins, height - margins], tz)
 
         # Today's date (top left)
-        self.draw_current_date(draw, [margins, margins, (width - 3 * margins) // 1.5 + margins, int(height * 0.125 + margins)])
+        #self.draw_current_date(draw, [margins, margins, (width - 3 * margins) // 1.5 + margins, int(height * 0.125 + margins)])
 
         # Weather (middle left)
         weather_api_key = device_config.load_env_key("WEATHER_API_KEY")
         weather_data = self.get_weather_data(weather_api_key, "metric", settings.get("lat"), settings.get("long"))
-        self.draw_weather_data(image, draw, [margins, int(height * 0.125 + margins + margins), (width-margins*3)//2+margins, (height // 2) - margins], weather_data)
+        #self.draw_weather_data(image, draw, [margins, int(height * 0.125 + margins + margins), (width-margins*3)//2+margins, (height // 2) - margins], weather_data)
+        print("Weather data:")
+        print(weather_data)
 
         #Todoist todos (right)
         todoist_api_key = device_config.load_env_key("TODOIST_API_KEY")
         todoist_tasks = self.get_todos(todoist_api_key)
-        self.draw_todos(todoist_tasks, draw, [(width - 3 * margins) // 2 + 2 * margins, int(height * 0.125 + margins + margins), width - margins, height - margins])
+        #self.draw_todos(todoist_tasks, draw, [(width - 3 * margins) // 2 + 2 * margins, int(height * 0.125 + margins + margins), width - margins, height - margins])
+        print("Todoist tasks:")
+        print(todoist_tasks)
+
+        # New approach
+        template_params = dict()
+        template_params["plugin_settings"] = settings
+        template_params["events"] = events
+        template_params["weather_data"] = weather_data
+        template_params["todoist_tasks"] = todoist_tasks
+        template_params["current_date"] = datetime.now().strftime("%d.%m.%Y")
+        image = self.render_image(device_config.get_resolution(), "dashboard.html", "dashboard.css", template_params)
+
 
         return image
 
