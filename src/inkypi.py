@@ -42,7 +42,11 @@ template_dirs = [
 app.jinja_loader = ChoiceLoader([FileSystemLoader(directory) for directory in template_dirs])
 
 device_config = Config()
-display_manager = DisplayManager(device_config)
+if os.getenv("INKYPI_DEV_MODE"):
+    from unittest.mock import MagicMock
+    display_manager = MagicMock()
+else:
+    display_manager = DisplayManager(device_config)
 refresh_task = RefreshTask(device_config, display_manager)
 
 load_plugins(device_config.get_plugins())
@@ -67,7 +71,7 @@ if __name__ == '__main__':
     refresh_task.start()
 
     # display default inkypi image on startup
-    if device_config.get_config("startup") is True:
+    if device_config.get_config("startup") is True and not os.getenv("INKYPI_DEV_MODE"):
         logger.info("Startup flag is set, displaying startup image")
         img = generate_startup_image(device_config.get_resolution())
         display_manager.display_image(img)
