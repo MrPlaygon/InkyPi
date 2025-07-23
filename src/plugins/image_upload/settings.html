@@ -7,6 +7,12 @@
     </div>
     <label for="backgroundColor" class="form-label">Background Color:</label>
     <input type="color" id="backgroundColor" name="backgroundColor" value="#ffffff"/>
+    <label for="randomizeImage" class="form-label">Randomize Image Order:</label>
+    <div class="toggle-container">
+        <input type="checkbox" id="randomizeImage" name="randomizeImage" class="toggle-checkbox" value="false"
+            onclick="this.value = this.checked ? 'true' : 'false'">
+        <label for="randomizeImage" class="toggle-label"></label>
+    </div>
 </div>
 
 <div class="form-group">
@@ -75,6 +81,7 @@
         const hiddenFileInputs = document.getElementById("hiddenFileInputs");
         if (loadPluginSettings) {
             document.getElementById('padImage').checked = pluginSettings.padImage;
+            document.getElementById('randomizeImage').checked = pluginSettings.randomizeImage;
             document.getElementById('backgroundColor').value = pluginSettings.backgroundColor;
 
             const existingFiles = pluginSettings['imageFiles[]'] || []

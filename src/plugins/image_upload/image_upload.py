@@ -2,6 +2,7 @@ from plugins.base_plugin.base_plugin import BasePlugin
 from PIL import Image, ImageOps, ImageColor
 from io import BytesIO
 import logging
+import random
 
 logger = logging.getLogger(__name__)
 
@@ -13,6 +14,9 @@ class ImageUpload(BasePlugin):
         if img_index >= len(image_locations):
             # reset if image_locations changed
             img_index = 0
+
+        if settings.get("randomizeImages", False):
+            img_index = random.randint(0, len(image_locations) - 1)
 
         if not image_locations:
             raise RuntimeError("No images provided.")
