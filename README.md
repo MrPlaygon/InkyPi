@@ -107,6 +107,12 @@ To install InkyPi, simply run the following command:
 sudo bash install/uninstall.sh
 ```
 
+## Podman
+
+Running Inkypi with podman:
+`podman build -t inkypi .`
+`podman run -v /home/pi/inkypidata:/data --privileged -p 8080:80 --group-add=keep-groups --restart=always -d localhost/inkypi`
+
 ## Roadmap
 The InkyPi project is constantly evolving, with many exciting features and improvements planned for the future.
 
